@@ -4,6 +4,8 @@ A free simple Chrome extension for capturing website screenshots with device fra
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 
+![Kubshot Screenshot](docs/images/home.png)
+
 ## Features
 
 - 📱 **Device frames** - Preview any webpage in phones or tablets
