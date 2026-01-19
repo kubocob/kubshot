@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kubshot</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+  <link rel="stylesheet" href="panel.css">
+</head>
+<body>
+  <div class="panel-container">
+    <div id="preview-controls" class="scrollable-content">
+      <!-- DEVICE SECTION (Bezel is always visible) -->
+      <section class="panel-section">
+        <div class="section-header">
+          <label>Device</label>
+          <label class="toggle-row" title="Enable/Disable Preview">
+            <input type="checkbox" id="toggle-preview" checked>
+            <span class="toggle-switch"></span>
+          </label>
+        </div>
+        
+        <!-- Device Selection -->
+        <div class="subsection">
+          <select id="device-select">
+            <!-- Options populated dynamically from devices.js -->
+          </select>
+        </div>
+        
+        <!-- Custom Dimensions -->
+        <div class="subsection" id="custom-dimensions-section" style="display: none;">
+          <div class="dimension-row">
+            <div class="dimension-input">
+              <label>Width</label>
+              <input type="number" id="custom-width" class="text-input text-input-small" value="390" min="100" max="4000">
+            </div>
+            <span class="dimension-x">×</span>
+            <div class="dimension-input">
+              <label>Height</label>
+              <input type="number" id="custom-height" class="text-input text-input-small" value="844" min="100" max="4000">
+            </div>
+          </div>
+        </div>
+
+        <!-- Orientation -->
+        <div class="subsection" id="orientation-section">
+          <label>Orientation</label>
+          <div class="button-group">
+            <button id="orientation-portrait" class="btn btn-icon active" title="Portrait">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <rect x="4" y="1" width="8" height="14" rx="1" stroke="currentColor" stroke-width="1.5" fill="none"/>
+              </svg>
+            </button>
+            <button id="orientation-landscape" class="btn btn-icon" title="Landscape">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <rect x="1" y="4" width="14" height="8" rx="1" stroke="currentColor" stroke-width="1.5" fill="none"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Notch -->
+        <div class="checkbox-row" id="notch-section">
+          <input type="checkbox" id="show-notch" checked>
+          <label for="show-notch">Show notch</label>
+        </div>
+      </section>
+
+      <hr class="divider">
+
+      <!-- DEVICE CONTENT SECTION (What's inside the device frame) -->
+      <section class="panel-section">
+        <label>Device Content</label>
+        <select id="frame-mode">
+          <option value="none">Page Only</option>
+          <option value="system">System Bar</option>
+          <option value="all" selected>System + Browser</option>
+        </select>
+
+        <!-- Frame Theme (shared for system and browser bars) -->
+        <div id="frame-theme-options" class="frame-options">
+          <div class="options-header">Bar Theme</div>
+          <div class="option-row">
+            <label>Theme</label>
+            <select id="frame-theme">
+              <option value="page">Page Theme</option>
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+              <option value="custom">Custom</option>
+            </select>
+          </div>
+          <div class="option-row" id="frame-custom-color-row" style="display: none;">
+            <label>Color</label>
+            <input type="color" id="frame-custom-color" value="#ffffff">
+          </div>
+        </div>
+
+        <!-- System Bar Options -->
+        <div id="system-options" class="frame-options">
+          <div class="options-header">System Bar</div>
+          <div class="option-row">
+            <label>Time</label>
+            <input type="text" id="system-time" class="text-input text-input-small" value="" placeholder="auto">
+          </div>
+          <div class="option-row">
+            <label>Battery</label>
+            <input type="range" id="system-battery" min="0" max="100" value="100" class="slider">
+            <span id="battery-value">100%</span>
+          </div>
+          <div class="checkbox-row">
+            <input type="checkbox" id="system-wifi" checked>
+            <label for="system-wifi">Show WiFi icon</label>
+          </div>
+          <div class="checkbox-row">
+            <input type="checkbox" id="system-signal" checked>
+            <label for="system-signal">Show Signal bars</label>
+          </div>
+        </div>
+
+        <!-- Browser Bar Options -->
+        <div id="browser-options" class="frame-options">
+          <div class="options-header">Browser Bar</div>
+          <div class="option-row">
+            <label>Position</label>
+            <select id="browser-position">
+              <option value="top">Top</option>
+              <option value="bottom">Bottom</option>
+            </select>
+          </div>
+          <div class="option-row">
+            <label>URL</label>
+            <input type="text" id="browser-url" class="text-input" placeholder="Uses current page URL" value="">
+          </div>
+          <div class="checkbox-row">
+            <input type="checkbox" id="browser-show-controls" checked>
+            <label for="browser-show-controls">Show browser icons</label>
+          </div>
+        </div>
+      </section>
+
+      <hr class="divider">
+
+      <!-- BACKGROUND SECTION -->
+      <section class="panel-section">
+        <label>Background</label>
+        <select id="background-mode">
+          <option value="no-background">No Background (Transparent)</option>
+          <option value="filled" selected>Filled</option>
+          <option value="page-behind">Page Behind</option>
+        </select>
+        
+        <!-- Filled background options -->
+        <div class="background-options" id="color-options">
+          <div class="color-grid" id="color-grid"></div>
+          <div class="custom-color-row">
+            <label>Custom</label>
+            <input type="color" id="custom-color" value="#212121">
+          </div>
+        </div>
+
+        <!-- Page Behind options -->
+        <div class="background-options" id="page-behind-options" style="display: none;">
+          <div class="option-row">
+            <label>Overlay Color</label>
+            <select id="page-behind-color">
+              <option value="dark">Dark</option>
+              <option value="light">Light</option>
+            </select>
+          </div>
+          <div class="option-row">
+            <label>Transparency</label>
+            <input type="range" id="page-behind-transparency" min="0" max="100" value="50" class="slider">
+            <span id="transparency-value">50%</span>
+          </div>
+        </div>
+      </section>
+
+      <hr class="divider">
+
+      <!-- TILT SECTION -->
+      <section class="panel-section">
+        <label>Tilt Effect</label>
+        <select id="tilt-select">
+          <option value="none">None</option>
+          <option value="left">Tilt Left</option>
+          <option value="right">Tilt Right</option>
+          <option value="perspective">3D Perspective</option>
+          <option value="custom">Custom</option>
+        </select>
+        
+        <!-- Custom tilt options -->
+        <div id="custom-tilt-options" style="display: none;">
+          <!-- 3D Rotation Gizmo -->
+          <div class="tilt-gizmo-container">
+            <div class="tilt-gizmo" id="tilt-gizmo">
+              <div class="gizmo-cube">
+                <div class="gizmo-face gizmo-front"></div>
+                <div class="gizmo-face gizmo-back"></div>
+                <div class="gizmo-face gizmo-left"></div>
+                <div class="gizmo-face gizmo-right"></div>
+                <div class="gizmo-face gizmo-top"></div>
+                <div class="gizmo-face gizmo-bottom"></div>
+              </div>
+            </div>
+            <div class="gizmo-hint">Drag to rotate • Shift+drag for Z-axis</div>
+          </div>
+          
+          <!-- Fine-tune controls (collapsible) -->
+          <button class="btn btn-small tilt-fine-toggle" id="tilt-fine-toggle">
+            <span class="toggle-icon">▶</span> Fine-tune values
+          </button>
+          <div class="tilt-fine-controls collapsed" id="tilt-fine-controls">
+            <div class="tilt-control">
+              <label>X</label>
+              <input type="range" id="tilt-x" min="-45" max="45" value="0">
+              <span class="range-value" id="tilt-x-value">0°</span>
+            </div>
+            <div class="tilt-control">
+              <label>Y</label>
+              <input type="range" id="tilt-y" min="-45" max="45" value="0">
+              <span class="range-value" id="tilt-y-value">0°</span>
+            </div>
+            <div class="tilt-control">
+              <label>Z</label>
+              <input type="range" id="tilt-z" min="-45" max="45" value="0">
+              <span class="range-value" id="tilt-z-value">0°</span>
+            </div>
+            <div class="tilt-control">
+              <label>Depth</label>
+              <input type="range" id="tilt-perspective" min="500" max="2000" value="1000">
+              <span class="range-value" id="tilt-perspective-value">1000px</span>
+            </div>
+          </div>
+          <button class="btn btn-small" id="tilt-reset" style="margin-top: 8px; width: 100%;">Reset</button>
+        </div>
+      </section>
+    </div>
+
+    <!-- STICKY CAPTURE SECTION -->
+    <div id="capture-section" class="capture-sticky">
+      <!-- Tilt warning message -->
+      <div id="tilt-warning" class="tilt-warning-banner">
+        <span class="material-icons">warning</span>
+        <span>Screenshots with tilted device and transparent background are not yet supported</span>
+      </div>
+      
+      <!-- Capture controls row -->
+      <div class="capture-row">
+        <!-- Capture button (full width) -->
+        <button id="btn-capture" class="btn btn-primary btn-capture">
+          <span class="material-icons">photo_camera</span>
+          Capture Screenshot
+        </button>
+        
+        <!-- Format selector -->
+        <select id="export-format" class="export-format-select">
+          <option value="png">PNG</option>
+          <option value="webp">WebP</option>
+          <option value="jpeg">JPEG</option>
+        </select>
+        
+        <!-- Gallery thumbnail button -->
+        <button id="btn-gallery" class="gallery-thumb-btn" title="Open Gallery">
+          <div class="gallery-thumb-preview" id="gallery-thumb-preview">
+            <span class="material-icons gallery-empty-icon">collections</span>
+          </div>
+          <span class="gallery-badge" id="gallery-badge" style="display: none;">0</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Capture flash animation overlay -->
+    <div id="capture-flash" class="capture-flash"></div>
+
+    <!-- GALLERY PANEL (Slide-over) -->
+    <div id="gallery-panel" class="gallery-panel">
+      <div class="gallery-panel-header">
+        <h3>Gallery</h3>
+        <div class="header-actions">
+          <button id="btn-clear-all" class="btn btn-icon btn-subtle" title="Clear all screenshots">
+            <span class="material-icons">delete_sweep</span>
+          </button>
+          <button id="btn-close-gallery" class="btn btn-icon gallery-close" title="Close">
+            <span class="material-icons">close</span>
+          </button>
+        </div>
+      </div>
+      
+      <div class="gallery-panel-content" id="gallery-content">
+        <div class="gallery-empty" id="gallery-empty">
+          <span class="material-icons empty-icon">photo_camera</span>
+          <p>No screenshots yet</p>
+          <p class="empty-hint">Capture your first screenshot!</p>
+        </div>
+        
+        <div class="gallery-grid" id="gallery-grid"></div>
+      </div>
+    </div>
+    
+    <!-- Gallery backdrop -->
+    <div id="gallery-backdrop" class="gallery-backdrop"></div>
+  </div>
+  <script src="devices.js"></script>
+  <script src="panel.js"></script>
+</body>
+</html>
