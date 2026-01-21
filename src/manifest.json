@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Kubshot",
+  "name": "Kubshot - Device Screenshots",
   "version": "1.0.0",
-  "description": "A free simple Chrome extension for capturing website screenshots with device frames.",
+  "description": "Capture website screenshots with device frames. Free, local, no account needed.",
   "permissions": [
     "tabs",
     "activeTab",
@@ -18,7 +18,7 @@
     "default_path": "panel.html"
   },
   "action": {
-    "default_title": "Kubshot",
+    "default_title": "Kubshot - Capture device screenshot",
     "default_icon": {
       "16": "icons/icon16.png",
       "32": "icons/icon32.png",

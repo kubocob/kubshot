@@ -74,6 +74,10 @@ This project was primarily vibe-coded using AI assistance, with occasional manua
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
+## Privacy
+
+Kubshot is fully local — no data collection, no accounts, no tracking. See [PRIVACY.md](PRIVACY.md) for details.
+
 ## License
 
 MIT License - see [LICENSE](LICENSE) for details.

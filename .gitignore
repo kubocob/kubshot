@@ -25,5 +25,8 @@ npm-debug.log*
 .env.local
 
 # Temporary files
+store-assets/
+
+# Temporary files
 *.tmp
 *.temp

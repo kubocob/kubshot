@@ -272,6 +272,8 @@
     deviceFrame.id = 'dp-device-frame';
     deviceFrame.style.cssText = `
       position: relative;
+      width: fit-content;
+      height: fit-content;
       background: linear-gradient(145deg, #2d2d2d 0%, #1a1a1a 50%, #0d0d0d 100%);
       border-radius: 44px;
       padding: 14px;
@@ -319,6 +321,8 @@
     screen.id = 'dp-screen';
     screen.style.cssText = `
       position: relative;
+      width: fit-content;
+      height: fit-content;
       background: #000;
       border-radius: 32px;
       overflow: hidden;
@@ -542,9 +546,6 @@
       screenRadius = 32;
     }
     
-    const frameWidth = device.width + (padding * 2);
-    const frameHeight = device.height + (padding * 2);
-    
     const frameBackground = 'linear-gradient(145deg, #2d2d2d 0%, #1a1a1a 50%, #0d0d0d 100%)';
     const frameShadow = `
       0 50px 100px -20px rgba(0, 0, 0, 0.8),
@@ -553,18 +554,15 @@
       inset 0 -1px 1px rgba(0, 0, 0, 0.5)
     `;
     
-    deviceFrame.style.width = `${frameWidth}px`;
-    deviceFrame.style.height = `${frameHeight}px`;
     deviceFrame.style.padding = `${padding}px`;
     deviceFrame.style.border = 'none';
     deviceFrame.style.borderRadius = `${borderRadius}px`;
     deviceFrame.style.background = frameBackground;
     deviceFrame.style.boxShadow = frameShadow;
-    
     screen.style.width = `${device.width}px`;
-    screen.style.height = `${device.height}px`;
+    screen.style.height = `${device.height}px`; 
     screen.style.borderRadius = `${screenRadius}px`;
-    
+   
     viewport.style.width = `${device.width}px`;
     viewport.style.height = `${device.height}px`;
     viewport.style.borderRadius = `${screenRadius}px`;
