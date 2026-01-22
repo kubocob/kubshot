@@ -9,7 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const customDimensionsSection = document.getElementById('custom-dimensions-section');
   const orientationPortrait = document.getElementById('orientation-portrait');
   const orientationLandscape = document.getElementById('orientation-landscape');
-  const showNotchCheckbox = document.getElementById('show-notch');
+  const deviceStyleSelect = document.getElementById('device-style-select');
   const backgroundModeSelect = document.getElementById('background-mode');
   const colorOptions = document.getElementById('color-options');
   const pageBehindOptions = document.getElementById('page-behind-options');
@@ -107,7 +107,7 @@ document.addEventListener('DOMContentLoaded', () => {
       device: 'phone-medium',
       customWidth: 390,
       customHeight: 844,
-      showNotch: true,
+      deviceStyle: 'modern-notch',
       orientation: 'portrait',
       backgroundMode: 'transparent',
       backgroundColor: '#212121',
@@ -148,6 +148,35 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         deviceSelect.appendChild(option);
+      });
+    }
+  }
+
+  function populateDeviceStyleSelect() {
+    deviceStyleSelect.innerHTML = '';
+    
+    if (window.deviceStyles && Array.isArray(window.deviceStyles)) {
+      // Group styles by category
+      const categories = window.getDeviceStylesByCategory();
+      const categoryLabels = {
+        'modern': 'Modern',
+        'classic': 'Classic',
+        'minimal': 'Minimal'
+      };
+      
+      Object.entries(categories).forEach(([categoryId, styles]) => {
+        const optgroup = document.createElement('optgroup');
+        optgroup.label = categoryLabels[categoryId] || categoryId;
+        
+        styles.forEach(style => {
+          const option = document.createElement('option');
+          option.value = style.id;
+          option.textContent = `${style.name}`;
+          option.title = style.description;
+          optgroup.appendChild(option);
+        });
+        
+        deviceStyleSelect.appendChild(optgroup);
       });
     }
   }
@@ -446,17 +475,17 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!device) return;
     
     const dims = getCurrentDimensions();
-    const showNotch = settings.showNotch && device.hasNotch;
+    const deviceStyle = window.getDeviceStyle?.(settings.deviceStyle) || window.deviceStyles?.[0];
     
     await sendToContent({ 
       type: 'SET_DEVICE', 
       device: { 
         ...device, 
         width: dims.width, 
-        height: dims.height,
-        showNotch: showNotch
+        height: dims.height
       },
-      orientation: settings.orientation
+      orientation: settings.orientation,
+      deviceStyle: deviceStyle
     });
   }
 
@@ -700,8 +729,8 @@ document.addEventListener('DOMContentLoaded', () => {
     await applyAllSettings();
   });
 
-  showNotchCheckbox.addEventListener('change', async (e) => {
-    settings.showNotch = e.target.checked;
+  deviceStyleSelect.addEventListener('change', async (e) => {
+    settings.deviceStyle = e.target.value;
     saveSettings();
     await applyAllSettings();
   });
@@ -1004,19 +1033,24 @@ document.addEventListener('DOMContentLoaded', () => {
     const isTablet = settings.device === 'tablet';
     const isPhone = settings.device.startsWith('phone-') || settings.device === 'custom';
     
-    let padding, borderRadius, screenRadius;
-    if (isTablet) {
-      padding = 16;
-      borderRadius = 30;
-      screenRadius = 20;
-    } else {
-      padding = 14;
-      borderRadius = 44;
-      screenRadius = 32;
-    }
+    // Get device style
+    const deviceStyle = window.getDeviceStyle?.(settings.deviceStyle) || window.deviceStyles?.[0];
+    const frame = deviceStyle?.frame || {
+      padding: 14,
+      borderRadius: 44,
+      screenRadius: 32
+    };
     
-    const frameWidth = screenWidth + (padding * 2);
-    const frameHeight = screenHeight + (padding * 2);
+    const paddingTop = frame.paddingTop || frame.padding;
+    const paddingBottom = frame.paddingBottom || frame.padding;
+    const paddingLeft = frame.paddingLeft || frame.padding;
+    const paddingRight = frame.paddingRight || frame.padding;
+    
+    const borderRadius = frame.borderRadius;
+    const screenRadius = frame.screenRadius;
+    
+    const frameWidth = screenWidth + paddingLeft + paddingRight;
+    const frameHeight = screenHeight + paddingTop + paddingBottom;
     
     // Temporarily reset tilt for capture
     const hasTilt = settings.tiltPreset !== 'none' || 
@@ -1066,15 +1100,15 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const deviceType = isTablet ? 'tablet' : 'phone';
         
-        // Draw device frame
+        // Draw device frame using style
         ctx.save();
-        drawDeviceFrame(ctx, offsetX, offsetY, frameWidth * outDpr, frameHeight * outDpr, borderRadius * outDpr, padding * outDpr, screenRadius * outDpr, deviceType);
+        drawDeviceFrameWithStyle(ctx, offsetX, offsetY, frameWidth * outDpr, frameHeight * outDpr, deviceStyle, outDpr);
         ctx.restore();
         
         // Draw screen content
         ctx.save();
-        const screenX = offsetX + padding * outDpr;
-        const screenY = offsetY + padding * outDpr;
+        const screenX = offsetX + paddingLeft * outDpr;
+        const screenY = offsetY + paddingTop * outDpr;
         
         ctx.beginPath();
         roundedRect(ctx, screenX, screenY, screenWidth * outDpr, screenHeight * outDpr, screenRadius * outDpr);
@@ -1086,14 +1120,13 @@ document.addEventListener('DOMContentLoaded', () => {
         );
         ctx.restore();
         
-        // Draw notch
-        const showNotch = settings.showNotch && device.hasNotch && isPhone;
-        if (showNotch) {
-          drawNotch(ctx, offsetX, offsetY, frameWidth * outDpr, padding * outDpr);
+        // Draw notch based on style
+        if (deviceStyle?.notch) {
+          drawNotchWithStyle(ctx, offsetX, offsetY, frameWidth * outDpr, screenWidth * outDpr, deviceStyle, outDpr);
         }
         
-        // Draw home indicator
-        drawHomeIndicator(ctx, offsetX, offsetY, frameWidth * outDpr, frameHeight * outDpr, screenWidth * outDpr, padding * outDpr);
+        // Draw home elements based on style
+        drawHomeElementsWithStyle(ctx, offsetX, offsetY, frameWidth * outDpr, frameHeight * outDpr, screenWidth * outDpr, deviceStyle, outDpr);
         
         // Get the straight device image
         const straightDeviceDataUrl = canvas.toDataURL('image/png');
@@ -1378,89 +1411,303 @@ document.addEventListener('DOMContentLoaded', () => {
     ctx.closePath();
   }
 
-  function drawDeviceFrame(ctx, x, y, width, height, borderRadius, padding, screenRadius, deviceType) {
-    const isPhone = deviceType === 'phone';
+  // Parse CSS-like background to canvas fillStyle
+  function parseBackground(ctx, background, x, y, width, height) {
+    if (!background) return '#2d2d2d';
     
-    const gradient = ctx.createLinearGradient(x, y, x + width, y + height);
-    gradient.addColorStop(0, '#2d2d2d');
-    gradient.addColorStop(0.5, '#1a1a1a');
-    gradient.addColorStop(1, '#0d0d0d');
+    // Check for linear gradient
+    const gradientMatch = background.match(/linear-gradient\((\d+)deg,\s*([^)]+)\)/);
+    if (gradientMatch) {
+      const angle = parseInt(gradientMatch[1]) || 145;
+      const stops = gradientMatch[2].split(',').map(s => s.trim());
+      
+      // Calculate gradient points based on angle
+      const rad = (angle - 90) * Math.PI / 180;
+      const cx = x + width / 2;
+      const cy = y + height / 2;
+      const len = Math.max(width, height);
+      
+      const gradient = ctx.createLinearGradient(
+        cx - Math.cos(rad) * len / 2,
+        cy - Math.sin(rad) * len / 2,
+        cx + Math.cos(rad) * len / 2,
+        cy + Math.sin(rad) * len / 2
+      );
+      
+      stops.forEach((stop, i) => {
+        const parts = stop.split(/\s+/);
+        const color = parts[0];
+        const position = parts[1] ? parseFloat(parts[1]) / 100 : i / (stops.length - 1);
+        gradient.addColorStop(position, color);
+      });
+      
+      return gradient;
+    }
     
+    return background;
+  }
+
+  function drawDeviceFrameWithStyle(ctx, x, y, width, height, style, dpr) {
+    const frame = style?.frame || {};
+    const borderRadius = (frame.borderRadius || 44) * dpr;
+    
+    // Draw frame background
+    const fillStyle = parseBackground(ctx, frame.background, x, y, width, height);
     ctx.beginPath();
     roundedRect(ctx, x, y, width, height, borderRadius);
-    ctx.fillStyle = gradient;
+    ctx.fillStyle = fillStyle;
     ctx.fill();
     
-    ctx.beginPath();
-    roundedRect(ctx, x, y, width, height, borderRadius);
-    ctx.strokeStyle = 'rgba(255,255,255,0.1)';
-    ctx.lineWidth = 1;
-    ctx.stroke();
+    // Draw border if specified
+    if (frame.border) {
+      ctx.beginPath();
+      roundedRect(ctx, x, y, width, height, borderRadius);
+      ctx.strokeStyle = frame.border.replace(/\d+px\s+solid\s+/, '');
+      ctx.lineWidth = parseInt(frame.border) || 2;
+      ctx.stroke();
+    } else {
+      // Default subtle highlight
+      ctx.beginPath();
+      roundedRect(ctx, x, y, width, height, borderRadius);
+      ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
     
-    if (isPhone) {
-      const btnColor = '#1a1a1a';
+    // Draw buttons if specified
+    if (style?.buttons) {
+      const buttons = style.buttons;
       
-      ctx.fillStyle = btnColor;
-      ctx.fillRect(x + width - 1, y + 120, 3, 80);
+      if (buttons.power) {
+        const btn = buttons.power;
+        ctx.fillStyle = btn.background || '#1a1a1a';
+        ctx.fillRect(
+          x + width - 1 * dpr,
+          y + (btn.top || 120) * dpr,
+          (btn.width || 3) * dpr,
+          (btn.height || 80) * dpr
+        );
+      }
       
-      ctx.fillRect(x - 2, y + 100, 3, 40);
-      ctx.fillRect(x - 2, y + 150, 3, 40);
+      if (buttons.volumeUp) {
+        const btn = buttons.volumeUp;
+        ctx.fillStyle = btn.background || '#1a1a1a';
+        ctx.fillRect(
+          x - 2 * dpr,
+          y + (btn.top || 100) * dpr,
+          (btn.width || 3) * dpr,
+          (btn.height || 40) * dpr
+        );
+      }
+      
+      if (buttons.volumeDown) {
+        const btn = buttons.volumeDown;
+        ctx.fillStyle = btn.background || '#1a1a1a';
+        ctx.fillRect(
+          x - 2 * dpr,
+          y + (btn.top || 150) * dpr,
+          (btn.width || 3) * dpr,
+          (btn.height || 40) * dpr
+        );
+      }
     }
   }
 
-  function drawNotch(ctx, frameX, frameY, frameWidth, padding) {
-    const notchWidth = 130;
-    const notchHeight = 32;
-    const notchX = frameX + (frameWidth - notchWidth) / 2;
-    const notchY = frameY + padding;
+  function drawNotchWithStyle(ctx, frameX, frameY, frameWidth, screenWidth, style, dpr) {
+    const notch = style?.notch;
+    if (!notch) return;
     
-    ctx.fillStyle = '#1a1a1a';
-    ctx.beginPath();
-    ctx.moveTo(notchX, notchY);
-    ctx.lineTo(notchX + notchWidth, notchY);
-    ctx.lineTo(notchX + notchWidth, notchY + notchHeight - 18);
-    ctx.quadraticCurveTo(notchX + notchWidth, notchY + notchHeight, notchX + notchWidth - 18, notchY + notchHeight);
-    ctx.lineTo(notchX + 18, notchY + notchHeight);
-    ctx.quadraticCurveTo(notchX, notchY + notchHeight, notchX, notchY + notchHeight - 18);
-    ctx.closePath();
-    ctx.fill();
+    const paddingTop = (style.frame?.paddingTop || style.frame?.padding || 14) * dpr;
     
-    ctx.fillStyle = '#333';
-    ctx.beginPath();
-    ctx.roundRect(notchX + (notchWidth - 50) / 2, notchY + 12, 50, 5, 3);
-    ctx.fill();
-    
-    const camX = notchX + notchWidth - 30;
-    const camY = notchY + 10;
-    const camGradient = ctx.createRadialGradient(camX + 5, camY + 5, 0, camX + 5, camY + 5, 5);
-    camGradient.addColorStop(0.3, '#1a3a5c');
-    camGradient.addColorStop(1, '#0a1520');
-    ctx.fillStyle = camGradient;
-    ctx.beginPath();
-    ctx.arc(camX + 5, camY + 5, 5, 0, Math.PI * 2);
-    ctx.fill();
+    switch (notch.type) {
+      case 'notch': {
+        const notchWidth = (notch.width || 130) * dpr;
+        const notchHeight = (notch.height || 32) * dpr;
+        const notchX = frameX + (frameWidth - notchWidth) / 2;
+        const notchY = frameY + paddingTop;
+        const notchRadius = (parseInt(notch.borderRadius) || 18) * dpr;
+        
+        ctx.fillStyle = notch.background || '#1a1a1a';
+        ctx.beginPath();
+        ctx.moveTo(notchX, notchY);
+        ctx.lineTo(notchX + notchWidth, notchY);
+        ctx.lineTo(notchX + notchWidth, notchY + notchHeight - notchRadius);
+        ctx.quadraticCurveTo(notchX + notchWidth, notchY + notchHeight, notchX + notchWidth - notchRadius, notchY + notchHeight);
+        ctx.lineTo(notchX + notchRadius, notchY + notchHeight);
+        ctx.quadraticCurveTo(notchX, notchY + notchHeight, notchX, notchY + notchHeight - notchRadius);
+        ctx.closePath();
+        ctx.fill();
+        
+        // Draw notch elements
+        if (notch.elements) {
+          notch.elements.forEach(el => {
+            if (el.type === 'speaker') {
+              ctx.fillStyle = el.background || '#333';
+              ctx.beginPath();
+              ctx.roundRect(
+                notchX + (notchWidth - el.width * dpr) / 2,
+                notchY + el.top * dpr,
+                el.width * dpr,
+                el.height * dpr,
+                el.borderRadius * dpr
+              );
+              ctx.fill();
+            } else if (el.type === 'camera') {
+              const camX = notchX + notchWidth - el.right * dpr - el.size * dpr / 2;
+              const camY = notchY + el.top * dpr + el.size * dpr / 2;
+              const camGradient = ctx.createRadialGradient(camX, camY, 0, camX, camY, el.size * dpr / 2);
+              camGradient.addColorStop(0.3, '#1a3a5c');
+              camGradient.addColorStop(1, '#0a1520');
+              ctx.fillStyle = camGradient;
+              ctx.beginPath();
+              ctx.arc(camX, camY, el.size * dpr / 2, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          });
+        }
+        break;
+      }
+      
+      case 'pill': {
+        const pillWidth = (notch.width || 95) * dpr;
+        const pillHeight = (notch.height || 28) * dpr;
+        const pillX = frameX + (frameWidth - pillWidth) / 2;
+        const pillY = frameY + paddingTop + (notch.top || 12) * dpr;
+        const pillRadius = (notch.borderRadius || 14) * dpr;
+        
+        ctx.fillStyle = notch.background || '#000000';
+        ctx.beginPath();
+        ctx.roundRect(pillX, pillY, pillWidth, pillHeight, pillRadius);
+        ctx.fill();
+        
+        // Draw camera in pill
+        if (notch.elements) {
+          notch.elements.forEach(el => {
+            if (el.type === 'camera') {
+              const camX = pillX + pillWidth - el.right * dpr - el.size * dpr / 2;
+              const camY = pillY + el.top * dpr + el.size * dpr / 2;
+              const camGradient = ctx.createRadialGradient(camX, camY, 0, camX, camY, el.size * dpr / 2);
+              camGradient.addColorStop(0.3, '#1a3a5c');
+              camGradient.addColorStop(1, '#0a1520');
+              ctx.fillStyle = camGradient;
+              ctx.beginPath();
+              ctx.arc(camX, camY, el.size * dpr / 2, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          });
+        }
+        break;
+      }
+      
+      case 'punchhole': {
+        const size = (notch.size || 14) * dpr;
+        const top = (notch.top || 14) * dpr;
+        let cx;
+        
+        if (notch.position === 'left') {
+          cx = frameX + paddingTop + 14 * dpr + size / 2;
+        } else if (notch.position === 'right') {
+          cx = frameX + frameWidth - paddingTop - 14 * dpr - size / 2;
+        } else {
+          cx = frameX + frameWidth / 2;
+        }
+        
+        const cy = frameY + paddingTop + top + size / 2;
+        
+        ctx.fillStyle = notch.background || '#000000';
+        ctx.beginPath();
+        ctx.arc(cx, cy, size / 2, 0, Math.PI * 2);
+        ctx.fill();
+        break;
+      }
+      
+      case 'speaker-bar': {
+        const barWidth = (notch.width || 60) * dpr;
+        const barHeight = (notch.height || 6) * dpr;
+        const barX = frameX + (frameWidth - barWidth) / 2;
+        const barY = frameY + paddingTop + (notch.top || 28) * dpr;
+        
+        ctx.fillStyle = notch.background || '#888';
+        ctx.beginPath();
+        ctx.roundRect(barX, barY, barWidth, barHeight, (notch.borderRadius || 3) * dpr);
+        ctx.fill();
+        break;
+      }
+    }
   }
 
-  function drawHomeIndicator(ctx, frameX, frameY, frameWidth, frameHeight, screenWidth, padding) {
-    const indicatorWidth = Math.min(120, screenWidth * 0.35);
-    const indicatorHeight = 5;
-    const indicatorX = frameX + (frameWidth - indicatorWidth) / 2;
-    const indicatorY = frameY + frameHeight - padding - 13;
+  function drawHomeElementsWithStyle(ctx, frameX, frameY, frameWidth, frameHeight, screenWidth, style, dpr) {
+    const padding = (style?.frame?.padding || 14) * dpr;
+    const paddingTop = (style?.frame?.paddingTop || style?.frame?.padding || 14) * dpr;
+    const paddingBottom = (style?.frame?.paddingBottom || style?.frame?.padding || 14) * dpr;
     
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-    ctx.beginPath();
-    ctx.roundRect(indicatorX, indicatorY, indicatorWidth, indicatorHeight, 3);
-    ctx.fill();
+    // Draw home button for classic styles
+    if (style?.homeButton?.show) {
+      const config = style.homeButton;
+      const size = config.size * dpr;
+      const btnX = frameX + (frameWidth - size) / 2;
+      // Center the button in the bottom bezel area
+      // Bottom bezel starts at: frameY + frameHeight - paddingBottom
+      // Button should be centered in that bezel
+      const bezelStartY = frameY + frameHeight - paddingBottom;
+      const btnY = bezelStartY + (paddingBottom - size) / 2;
+      
+      // Button background
+      const fillStyle = parseBackground(ctx, config.background, btnX, btnY, size, size);
+      ctx.fillStyle = fillStyle;
+      ctx.beginPath();
+      ctx.arc(btnX + size / 2, btnY + size / 2, size / 2, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Button border
+      if (config.border) {
+        ctx.strokeStyle = '#333';
+        ctx.lineWidth = dpr;
+        ctx.stroke();
+      }
+      
+      // Inner square for Touch ID
+      if (config.innerSquare) {
+        const innerSize = size * 0.4;
+        ctx.strokeStyle = '#444';
+        ctx.lineWidth = dpr;
+        ctx.beginPath();
+        ctx.roundRect(
+          btnX + (size - innerSize) / 2,
+          btnY + (size - innerSize) / 2,
+          innerSize,
+          innerSize,
+          4 * dpr
+        );
+        ctx.stroke();
+      }
+      return;
+    }
+    
+    // Draw home indicator for modern styles
+    if (style?.homeIndicator?.show) {
+      const config = style.homeIndicator;
+      const indicatorWidth = (config.width || Math.min(120, screenWidth / dpr * 0.35)) * dpr;
+      const indicatorHeight = (config.height || 5) * dpr;
+      const indicatorX = frameX + (frameWidth - indicatorWidth) / 2;
+      const indicatorY = frameY + frameHeight - padding - (config.bottom || 8) * dpr - indicatorHeight;
+      
+      ctx.fillStyle = config.background || 'rgba(255, 255, 255, 0.3)';
+      ctx.beginPath();
+      ctx.roundRect(indicatorX, indicatorY, indicatorWidth, indicatorHeight, (config.borderRadius || 3) * dpr);
+      ctx.fill();
+    }
   }
 
   async function init() {
     initColorGrid();
     populateDeviceSelect();
+    populateDeviceStyleSelect();
     
     deviceSelect.value = settings.device;
+    deviceStyleSelect.value = settings.deviceStyle || 'modern-notch';
     customWidthInput.value = settings.customWidth || 390;
     customHeightInput.value = settings.customHeight || 844;
-    showNotchCheckbox.checked = settings.showNotch !== false;
     updateDeviceUI();
     
     if (settings.orientation === 'landscape') {

@@ -6,6 +6,7 @@
   let currentDevice = null;
   let currentOrientation = 'portrait';
   let currentDeviceType = 'phone';
+  let currentDeviceStyle = null;
   let overlayElements = null;
   let currentSystemBar = { enabled: false, time: '9:41', battery: 100, showWifi: true, showSignal: true };
   let currentBrowserFrame = { frame: 'none', url: 'example.com', position: 'top', showControls: false };
@@ -17,7 +18,7 @@
       sendResponse({ success: true });
     }
     if (message.type === 'SET_DEVICE') {
-      setDevice(message.device, message.orientation);
+      setDevice(message.device, message.orientation, message.deviceStyle);
       sendResponse({ success: true });
     }
     if (message.type === 'GET_STATE') {
@@ -284,39 +285,6 @@
         inset 0 -1px 1px rgba(0, 0, 0, 0.5);
     `;
     
-    const powerButton = document.createElement('div');
-    powerButton.style.cssText = `
-      position: absolute;
-      right: -2px;
-      top: 120px;
-      width: 3px;
-      height: 80px;
-      background: linear-gradient(90deg, #1a1a1a, #333);
-      border-radius: 0 2px 2px 0;
-    `;
-    
-    const volumeUp = document.createElement('div');
-    volumeUp.style.cssText = `
-      position: absolute;
-      left: -2px;
-      top: 100px;
-      width: 3px;
-      height: 40px;
-      background: linear-gradient(90deg, #333, #1a1a1a);
-      border-radius: 2px 0 0 2px;
-    `;
-    
-    const volumeDown = document.createElement('div');
-    volumeDown.style.cssText = `
-      position: absolute;
-      left: -2px;
-      top: 150px;
-      width: 3px;
-      height: 40px;
-      background: linear-gradient(90deg, #333, #1a1a1a);
-      border-radius: 2px 0 0 2px;
-    `;
-    
     const screen = document.createElement('div');
     screen.id = 'dp-screen';
     screen.style.cssText = `
@@ -390,68 +358,9 @@
       })
       .catch(() => {});
     
-    const notch = document.createElement('div');
-    notch.id = 'dp-notch';
-    notch.style.cssText = `
-      position: absolute;
-      top: 0;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 130px;
-      height: 32px;
-      background: #1a1a1a;
-      border-radius: 0 0 18px 18px;
-      z-index: 100;
-      display: none;
-    `;
-    
-    const speaker = document.createElement('div');
-    speaker.style.cssText = `
-      position: absolute;
-      top: 12px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 50px;
-      height: 5px;
-      background: #333;
-      border-radius: 3px;
-    `;
-    notch.appendChild(speaker);
-    
-    const camera = document.createElement('div');
-    camera.style.cssText = `
-      position: absolute;
-      top: 10px;
-      right: 20px;
-      width: 10px;
-      height: 10px;
-      background: radial-gradient(circle, #1a3a5c 30%, #0a1520 100%);
-      border-radius: 50%;
-    `;
-    notch.appendChild(camera);
-    
-    const homeIndicator = document.createElement('div');
-    homeIndicator.id = 'dp-home-indicator';
-    homeIndicator.style.cssText = `
-      position: absolute;
-      bottom: 8px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 120px;
-      height: 5px;
-      background: rgba(255, 255, 255, 0.3);
-      border-radius: 3px;
-      z-index: 100;
-    `;
-    
     viewport.appendChild(iframe);
     screen.appendChild(viewport);
-    screen.appendChild(notch);
-    screen.appendChild(homeIndicator);
     deviceFrame.appendChild(screen);
-    deviceFrame.appendChild(powerButton);
-    deviceFrame.appendChild(volumeUp);
-    deviceFrame.appendChild(volumeDown);
     deviceWrapper.appendChild(deviceFrame);
     container.appendChild(background);
     container.appendChild(deviceWrapper);
@@ -467,8 +376,8 @@
       screen,
       viewport,
       iframe,
-      notch,
-      homeIndicator
+      notch: null,
+      homeIndicator: null
     };
     
     return overlayElements;
@@ -489,14 +398,14 @@
       overlayElements = createOverlay();
       
       if (currentDevice) {
-        applyDeviceDimensions(currentDevice, currentOrientation);
+        applyDeviceStyle(currentDevice, currentOrientation, currentDeviceStyle);
       } else {
         setDevice({
           id: 'phone-medium',
           name: 'Medium Phone',
           width: 390,
           height: 844
-        }, 'portrait');
+        }, 'portrait', currentDeviceStyle);
       }
       setSystemBar(
         currentSystemBar.enabled, 
@@ -516,138 +425,445 @@
     }
   }
 
-  function setDevice(device, orientation) {
+  function setDevice(device, orientation, deviceStyle) {
     currentDevice = device;
     currentOrientation = orientation || 'portrait';
     currentDeviceType = device?.id === 'tablet' ? 'tablet' : 'phone';
+    currentDeviceStyle = deviceStyle || null;
     if (previewEnabled && overlayElements) {
-      applyDeviceDimensions(device, currentOrientation);
+      applyDeviceStyle(device, currentOrientation, deviceStyle);
       updateViewportPosition();
     }
   }
 
-  function applyDeviceDimensions(device, orientation) {
+  function applyDeviceStyle(device, orientation, style) {
     if (!overlayElements || !device) return;
     
-    const { deviceFrame, screen, viewport, homeIndicator, notch } = overlayElements;
+    const { deviceFrame, screen, viewport } = overlayElements;
     
-    const isTablet = currentDeviceType === 'tablet';
-    const isPhone = currentDeviceType === 'phone';
+    // Remove any existing style-specific elements
+    clearStyleElements();
     
-    let padding, borderRadius, screenRadius;
+    // Get frame config from style or use defaults
+    const frame = style?.frame || {
+      padding: 14,
+      borderRadius: 44,
+      screenRadius: 32,
+      background: 'linear-gradient(145deg, #2d2d2d 0%, #1a1a1a 50%, #0d0d0d 100%)',
+      boxShadow: '0 50px 100px -20px rgba(0, 0, 0, 0.8), 0 30px 60px -30px rgba(0, 0, 0, 0.6), inset 0 1px 1px rgba(255, 255, 255, 0.1), inset 0 -1px 1px rgba(0, 0, 0, 0.5)'
+    };
     
-    if (isTablet) {
-      padding = 16;
-      borderRadius = 30;
-      screenRadius = 20;
-    } else {
-      padding = 14;
-      borderRadius = 44;
-      screenRadius = 32;
-    }
+    // Apply frame styling
+    const paddingTop = frame.paddingTop || frame.padding;
+    const paddingBottom = frame.paddingBottom || frame.padding;
+    const paddingLeft = frame.paddingLeft || frame.padding;
+    const paddingRight = frame.paddingRight || frame.padding;
     
-    const frameBackground = 'linear-gradient(145deg, #2d2d2d 0%, #1a1a1a 50%, #0d0d0d 100%)';
-    const frameShadow = `
-      0 50px 100px -20px rgba(0, 0, 0, 0.8),
-      0 30px 60px -30px rgba(0, 0, 0, 0.6),
-      inset 0 1px 1px rgba(255, 255, 255, 0.1),
-      inset 0 -1px 1px rgba(0, 0, 0, 0.5)
-    `;
+    deviceFrame.style.padding = `${paddingTop}px ${paddingRight}px ${paddingBottom}px ${paddingLeft}px`;
+    deviceFrame.style.borderRadius = `${frame.borderRadius}px`;
+    deviceFrame.style.background = frame.background;
+    deviceFrame.style.boxShadow = frame.boxShadow || 'none';
+    deviceFrame.style.border = frame.border || 'none';
     
-    deviceFrame.style.padding = `${padding}px`;
-    deviceFrame.style.border = 'none';
-    deviceFrame.style.borderRadius = `${borderRadius}px`;
-    deviceFrame.style.background = frameBackground;
-    deviceFrame.style.boxShadow = frameShadow;
+    // Apply screen dimensions
     screen.style.width = `${device.width}px`;
-    screen.style.height = `${device.height}px`; 
-    screen.style.borderRadius = `${screenRadius}px`;
-   
+    screen.style.height = `${device.height}px`;
+    screen.style.borderRadius = `${frame.screenRadius}px`;
+    
     viewport.style.width = `${device.width}px`;
     viewport.style.height = `${device.height}px`;
-    viewport.style.borderRadius = `${screenRadius}px`;
+    viewport.style.borderRadius = `${frame.screenRadius}px`;
     
-    homeIndicator.style.display = 'block';
-    homeIndicator.style.width = `${Math.min(120, device.width * 0.35)}px`;
+    // Render notch/cutout based on style
+    renderNotch(style, device, orientation);
     
+    // Render buttons based on style
+    renderButtons(style, orientation);
+    
+    // Render home indicator or home button based on style
+    renderHomeElements(style, device);
+  }
+
+  function clearStyleElements() {
+    // Remove all dynamic style elements
+    const elementsToRemove = [
+      'dp-notch', 'dp-home-indicator', 'dp-home-button',
+      'dp-power-btn', 'dp-volume-up', 'dp-volume-down'
+    ];
+    elementsToRemove.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.remove();
+    });
+  }
+
+  function renderNotch(style, device, orientation) {
+    if (!overlayElements || !style?.notch) return;
+    
+    const { screen } = overlayElements;
+    const notchConfig = style.notch;
     const isLandscape = orientation === 'landscape';
     
-    if (notch) {
-      const speaker = notch.querySelector('div:first-child');
-      const camera = notch.querySelector('div:last-child');
-      
-      if (isLandscape) {
-        notch.style.top = '50%';
-        notch.style.left = '0';
-        notch.style.transform = 'translateY(-50%)';
-        notch.style.width = '32px';
-        notch.style.height = '130px';
-        notch.style.borderRadius = '0 18px 18px 0';
-        
-        if (speaker) {
-          speaker.style.cssText = `
+    const notchEl = document.createElement('div');
+    notchEl.id = 'dp-notch';
+    
+    switch (notchConfig.type) {
+      case 'notch':
+        renderStandardNotch(notchEl, notchConfig, isLandscape);
+        break;
+      case 'pill':
+        renderPillNotch(notchEl, notchConfig, isLandscape);
+        break;
+      case 'punchhole':
+        renderPunchHole(notchEl, notchConfig, device, isLandscape);
+        break;
+      case 'speaker-bar':
+        renderSpeakerBar(notchEl, notchConfig, isLandscape);
+        break;
+      default:
+        return;
+    }
+    
+    screen.appendChild(notchEl);
+    overlayElements.notch = notchEl;
+  }
+
+  function renderStandardNotch(notchEl, config, isLandscape) {
+    if (isLandscape) {
+      notchEl.style.cssText = `
+        position: absolute;
+        top: 50%;
+        left: 0;
+        transform: translateY(-50%);
+        width: ${config.height}px;
+        height: ${config.width}px;
+        background: ${config.background};
+        border-radius: 0 ${parseInt(config.borderRadius) || 18}px ${parseInt(config.borderRadius) || 18}px 0;
+        z-index: 100;
+      `;
+    } else {
+      notchEl.style.cssText = `
+        position: absolute;
+        top: 0;
+        left: 50%;
+        transform: translateX(-50%);
+        width: ${config.width}px;
+        height: ${config.height}px;
+        background: ${config.background};
+        border-radius: ${config.borderRadius || '0 0 18px 18px'};
+        z-index: 100;
+      `;
+    }
+    
+    // Add notch elements (speaker, camera)
+    if (config.elements) {
+      config.elements.forEach(el => {
+        const element = document.createElement('div');
+        if (el.type === 'speaker') {
+          element.style.cssText = `
             position: absolute;
-            top: 50%;
-            left: 12px;
-            transform: translateY(-50%);
-            width: 5px;
-            height: 50px;
-            background: #333;
-            border-radius: 3px;
-          `;
-        }
-        if (camera) {
-          camera.style.cssText = `
-            position: absolute;
-            bottom: 20px;
-            left: 11px;
-            width: 10px;
-            height: 10px;
-            background: radial-gradient(circle, #1a3a5c 30%, #0a1520 100%);
-            border-radius: 50%;
-          `;
-        }
-      } else {
-        notch.style.top = '0';
-        notch.style.left = '50%';
-        notch.style.transform = 'translateX(-50%)';
-        notch.style.width = '130px';
-        notch.style.height = '32px';
-        notch.style.borderRadius = '0 0 18px 18px';
-        
-        if (speaker) {
-          speaker.style.cssText = `
-            position: absolute;
-            top: 12px;
+            top: ${el.top}px;
             left: 50%;
             transform: translateX(-50%);
-            width: 50px;
-            height: 5px;
-            background: #333;
-            border-radius: 3px;
+            width: ${el.width}px;
+            height: ${el.height}px;
+            background: ${el.background};
+            border-radius: ${el.borderRadius}px;
           `;
-        }
-        if (camera) {
-          camera.style.cssText = `
+        } else if (el.type === 'camera') {
+          element.style.cssText = `
             position: absolute;
-            top: 10px;
-            right: 20px;
-            width: 10px;
-            height: 10px;
-            background: radial-gradient(circle, #1a3a5c 30%, #0a1520 100%);
+            top: ${el.top}px;
+            right: ${el.right}px;
+            width: ${el.size}px;
+            height: ${el.size}px;
+            background: ${el.background};
             border-radius: 50%;
           `;
         }
+        notchEl.appendChild(element);
+      });
+    }
+  }
+
+  function renderPillNotch(notchEl, config, isLandscape) {
+    if (isLandscape) {
+      notchEl.style.cssText = `
+        position: absolute;
+        top: 50%;
+        left: ${config.top || 12}px;
+        transform: translateY(-50%);
+        width: ${config.height}px;
+        height: ${config.width}px;
+        background: ${config.background};
+        border-radius: ${config.borderRadius}px;
+        z-index: 100;
+      `;
+    } else {
+      notchEl.style.cssText = `
+        position: absolute;
+        top: ${config.top || 12}px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: ${config.width}px;
+        height: ${config.height}px;
+        background: ${config.background};
+        border-radius: ${config.borderRadius}px;
+        z-index: 100;
+      `;
+    }
+    
+    // Add pill elements
+    if (config.elements) {
+      config.elements.forEach(el => {
+        if (el.type === 'camera') {
+          const camera = document.createElement('div');
+          camera.style.cssText = `
+            position: absolute;
+            top: ${el.top}px;
+            right: ${el.right}px;
+            width: ${el.size}px;
+            height: ${el.size}px;
+            background: ${el.background};
+            border-radius: 50%;
+          `;
+          notchEl.appendChild(camera);
+        }
+      });
+    }
+  }
+
+  function renderPunchHole(notchEl, config, device, isLandscape) {
+    const size = config.size || 14;
+    let posStyle = '';
+    
+    if (isLandscape) {
+      const leftPos = config.top || 14;
+      if (config.position === 'left') {
+        posStyle = `top: 14px; left: ${leftPos}px;`;
+      } else if (config.position === 'right') {
+        posStyle = `bottom: 14px; left: ${leftPos}px;`;
+      } else {
+        posStyle = `top: 50%; left: ${leftPos}px; transform: translateY(-50%);`;
+      }
+    } else {
+      if (config.position === 'left') {
+        posStyle = `top: ${config.top || 14}px; left: 14px;`;
+      } else if (config.position === 'right') {
+        posStyle = `top: ${config.top || 14}px; right: 14px;`;
+      } else {
+        posStyle = `top: ${config.top || 14}px; left: 50%; transform: translateX(-50%);`;
       }
     }
     
-    const powerButton = deviceFrame.querySelector('div:nth-child(2)');
-    const volumeUp = deviceFrame.querySelector('div:nth-child(3)');
-    const volumeDown = deviceFrame.querySelector('div:nth-child(4)');
+    notchEl.style.cssText = `
+      position: absolute;
+      ${posStyle}
+      width: ${size}px;
+      height: ${size}px;
+      background: ${config.background};
+      border-radius: 50%;
+      ${config.border ? `border: ${config.border};` : ''}
+      z-index: 100;
+    `;
+  }
+
+  function renderSpeakerBar(notchEl, config, isLandscape) {
+    if (isLandscape) {
+      notchEl.style.cssText = `
+        position: absolute;
+        top: 50%;
+        left: ${config.top || 28}px;
+        transform: translateY(-50%);
+        width: ${config.height}px;
+        height: ${config.width}px;
+        background: ${config.background};
+        border-radius: ${config.borderRadius}px;
+        z-index: 100;
+      `;
+    } else {
+      notchEl.style.cssText = `
+        position: absolute;
+        top: ${config.top || 28}px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: ${config.width}px;
+        height: ${config.height}px;
+        background: ${config.background};
+        border-radius: ${config.borderRadius}px;
+        z-index: 100;
+      `;
+    }
+  }
+
+  function renderButtons(style, orientation) {
+    if (!overlayElements || !style?.buttons) return;
     
-    if (powerButton) powerButton.style.display = 'block';
-    if (volumeUp) volumeUp.style.display = isPhone ? 'block' : 'none';
-    if (volumeDown) volumeDown.style.display = isPhone ? 'block' : 'none';
+    const { deviceFrame } = overlayElements;
+    const buttons = style.buttons;
+    const isLandscape = orientation === 'landscape';
+    
+    // Power button
+    if (buttons.power) {
+      const btn = buttons.power;
+      const powerBtn = document.createElement('div');
+      powerBtn.id = 'dp-power-btn';
+      
+      if (isLandscape) {
+        powerBtn.style.cssText = `
+          position: absolute;
+          top: ${btn.right || -2}px;
+          right: ${btn.top}px;
+          width: ${btn.height}px;
+          height: ${btn.width}px;
+          background: ${btn.background || 'linear-gradient(180deg, #1a1a1a, #333)'};
+          border-radius: 2px 2px 0 0;
+        `;
+      } else {
+        powerBtn.style.cssText = `
+          position: absolute;
+          right: ${btn.right || -2}px;
+          top: ${btn.top}px;
+          width: ${btn.width}px;
+          height: ${btn.height}px;
+          background: ${btn.background || 'linear-gradient(90deg, #1a1a1a, #333)'};
+          border-radius: 0 2px 2px 0;
+        `;
+      }
+      deviceFrame.appendChild(powerBtn);
+    }
+    
+    // Volume Up
+    if (buttons.volumeUp) {
+      const btn = buttons.volumeUp;
+      const volUp = document.createElement('div');
+      volUp.id = 'dp-volume-up';
+      
+      if (isLandscape) {
+        volUp.style.cssText = `
+          position: absolute;
+          bottom: ${btn.left || -2}px;
+          left: ${btn.top}px;
+          width: ${btn.height}px;
+          height: ${btn.width}px;
+          background: ${btn.background || 'linear-gradient(0deg, #333, #1a1a1a)'};
+          border-radius: 0 0 2px 2px;
+        `;
+      } else {
+        volUp.style.cssText = `
+          position: absolute;
+          left: ${btn.left || -2}px;
+          top: ${btn.top}px;
+          width: ${btn.width}px;
+          height: ${btn.height}px;
+          background: ${btn.background || 'linear-gradient(90deg, #333, #1a1a1a)'};
+          border-radius: 2px 0 0 2px;
+        `;
+      }
+      deviceFrame.appendChild(volUp);
+    }
+    
+    // Volume Down
+    if (buttons.volumeDown) {
+      const btn = buttons.volumeDown;
+      const volDown = document.createElement('div');
+      volDown.id = 'dp-volume-down';
+      
+      if (isLandscape) {
+        volDown.style.cssText = `
+          position: absolute;
+          bottom: ${btn.left || -2}px;
+          left: ${btn.top}px;
+          width: ${btn.height}px;
+          height: ${btn.width}px;
+          background: ${btn.background || 'linear-gradient(0deg, #333, #1a1a1a)'};
+          border-radius: 0 0 2px 2px;
+        `;
+      } else {
+        volDown.style.cssText = `
+          position: absolute;
+          left: ${btn.left || -2}px;
+          top: ${btn.top}px;
+          width: ${btn.width}px;
+          height: ${btn.height}px;
+          background: ${btn.background || 'linear-gradient(90deg, #333, #1a1a1a)'};
+          border-radius: 2px 0 0 2px;
+        `;
+      }
+      deviceFrame.appendChild(volDown);
+    }
+  }
+
+  function renderHomeElements(style, device) {
+    if (!overlayElements) return;
+    
+    const { screen, deviceFrame } = overlayElements;
+    const frame = style?.frame || {};
+    const paddingBottom = frame.paddingBottom || frame.padding || 14;
+    
+    // Render home button for classic styles
+    if (style?.homeButton?.show) {
+      const config = style.homeButton;
+      const homeBtn = document.createElement('div');
+      homeBtn.id = 'dp-home-button';
+      
+      // Calculate vertical center position in bottom bezel
+      // The button should be centered in the paddingBottom area
+      const bottomOffset = (paddingBottom - config.size) / 2;
+      
+      homeBtn.style.cssText = `
+        position: absolute;
+        bottom: ${bottomOffset}px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: ${config.size}px;
+        height: ${config.size}px;
+        background: ${config.background};
+        border: ${config.border || 'none'};
+        border-radius: ${config.borderRadius || '50%'};
+        box-shadow: ${config.boxShadow || 'none'};
+        z-index: 100;
+      `;
+      
+      // Add inner square for Touch ID style
+      if (config.innerSquare) {
+        const inner = document.createElement('div');
+        inner.style.cssText = `
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          width: ${config.size * 0.4}px;
+          height: ${config.size * 0.4}px;
+          border: 1px solid #444;
+          border-radius: 4px;
+        `;
+        homeBtn.appendChild(inner);
+      }
+      
+      // Append to device frame (outside the screen)
+      deviceFrame.appendChild(homeBtn);
+      return;
+    }
+    
+    // Render home indicator for modern styles
+    if (style?.homeIndicator?.show) {
+      const config = style.homeIndicator;
+      const indicator = document.createElement('div');
+      indicator.id = 'dp-home-indicator';
+      indicator.style.cssText = `
+        position: absolute;
+        bottom: ${config.bottom || 8}px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: ${config.width || Math.min(120, device.width * 0.35)}px;
+        height: ${config.height || 5}px;
+        background: ${config.background || 'rgba(255, 255, 255, 0.3)'};
+        border-radius: ${config.borderRadius || 3}px;
+        z-index: 100;
+      `;
+      screen.appendChild(indicator);
+      overlayElements.homeIndicator = indicator;
+    }
   }
 
   function setBackground(background, mode) {
@@ -704,13 +920,6 @@
     const existingBar = document.getElementById('dp-system-bar');
     if (existingBar) existingBar.remove();
     
-    const showNotch = currentDevice?.showNotch;
-    const isPhone = currentDeviceType === 'phone';
-    
-    if (overlayElements.notch) {
-      overlayElements.notch.style.display = (showNotch && isPhone) ? 'block' : 'none';
-    }
-    
     if (!enabled) {
       updateViewportPosition();
       return;
@@ -745,8 +954,8 @@
     leftSide.innerHTML = `<span style="font-size: 14px; font-weight: 600;">${currentSystemBar.time}</span>`;
     
     const rightSide = document.createElement('div');
-    rightSide.style.cssText = `display: flex; align-items: center; gap: 5px;`;
-    
+    rightSide.style.cssText = `display: flex; align-items: center; justify-content: flex-end; gap: 8px;`;
+
     const iconColor = textColor;
     let iconsHtml = '';
     if (currentSystemBar.showSignal) {
@@ -961,8 +1170,8 @@
     const hasTopBar = systemBar || (browserBar && currentBrowserFrame.position !== 'bottom');
     const hasBottomBar = browserBar && currentBrowserFrame.position === 'bottom';
     
-    const isTablet = currentDeviceType === 'tablet';
-    const screenRadius = isTablet ? 20 : 32;
+    // Use device style's screen radius or default
+    const screenRadius = currentDeviceStyle?.frame?.screenRadius || (currentDeviceType === 'tablet' ? 20 : 32);
     
     const topRadius = hasTopBar ? '0' : `${screenRadius}px`;
     const bottomRadius = hasBottomBar ? '0' : `${screenRadius}px`;

@@ -59,10 +59,12 @@
           </div>
         </div>
 
-        <!-- Notch -->
-        <div class="checkbox-row" id="notch-section">
-          <input type="checkbox" id="show-notch" checked>
-          <label for="show-notch">Show notch</label>
+        <!-- Device Style -->
+        <div class="subsection" id="device-style-section">
+          <label>Device Style</label>
+          <select id="device-style-select">
+            <!-- Options populated dynamically from deviceStyles.js -->
+          </select>
         </div>
       </section>
 
@@ -301,6 +303,7 @@
     <div id="gallery-backdrop" class="gallery-backdrop"></div>
   </div>
   <script src="devices.js"></script>
+  <script src="deviceStyles.js"></script>
   <script src="panel.js"></script>
 </body>
 </html>
