@@ -4,7 +4,6 @@
   "version": "1.0.0",
   "description": "Capture website screenshots with device frames. Free, local, no account needed.",
   "permissions": [
-    "tabs",
     "activeTab",
     "scripting",
     "sidePanel",

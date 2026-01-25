@@ -182,20 +182,38 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   let currentTabId = null;
+  let panelPort = null;
+
+  // Connect to background script to track panel lifecycle
+  function connectToBackground() {
+    panelPort = chrome.runtime.connect({ name: 'panel' });
+    panelPort.onDisconnect.addListener(() => {
+      panelPort = null;
+    });
+  }
+  connectToBackground();
+
+  async function getActiveTab() {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    return tab;
+  }
 
   async function sendToContent(message) {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const tab = await getActiveTab();
     if (!tab?.id) {
       console.error('No active tab found');
       return;
     }
     
+    // Ensure content script is injected
     try {
       await chrome.scripting.executeScript({
         target: { tabId: tab.id },
         files: ['content.js']
       });
-    } catch (e) {}
+    } catch (e) {
+      // Script might already be injected or page doesn't allow it
+    }
     
     await new Promise(resolve => setTimeout(resolve, 100));
     
@@ -207,7 +225,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function checkContentScriptState() {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const tab = await getActiveTab();
     if (!tab?.id) return { enabled: false };
     
     try {
@@ -219,31 +237,67 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function syncWithCurrentTab() {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const tab = await getActiveTab();
     if (!tab?.id) return;
     
-    if (currentTabId === tab.id) return;
-    currentTabId = tab.id;
+    const previousTabId = currentTabId;
     
-    const state = await checkContentScriptState();
-    
-    if (togglePreview.checked && !state.enabled) {
-      await sendToContent({ type: 'TOGGLE_PREVIEW', enabled: true });
-      await applyAllSettings();
+    // If we switched to a different tab
+    if (previousTabId !== tab.id) {
+      // Cleanup the previous tab if preview was enabled
+      if (previousTabId && togglePreview.checked) {
+        try {
+          await chrome.tabs.sendMessage(previousTabId, { type: 'CLEANUP' });
+        } catch (e) {
+          // Previous tab might be closed
+        }
+      }
+      
+      currentTabId = tab.id;
+      
+      // Notify background of current tab
+      if (panelPort) {
+        panelPort.postMessage({ type: 'SET_TAB_ID', tabId: tab.id });
+      }
+      
+      // Check if new tab already has the extension enabled
+      const state = await checkContentScriptState();
+      
+      if (togglePreview.checked && !state.enabled) {
+        // Enable preview on new tab
+        await sendToContent({ type: 'TOGGLE_PREVIEW', enabled: true });
+        await applyAllSettings();
+      } else if (!togglePreview.checked && state.enabled) {
+        // Disable preview on new tab (cleanup orphaned state)
+        await sendToContent({ type: 'CLEANUP' });
+      }
     }
   }
 
-  chrome.tabs.onActivated.addListener(async (activeInfo) => {
-    await syncWithCurrentTab();
-  });
+  // Poll for tab changes (works without tabs permission for events)
+  let tabCheckInterval = null;
+  
+  function startTabMonitoring() {
+    if (tabCheckInterval) return;
+    tabCheckInterval = setInterval(async () => {
+      await syncWithCurrentTab();
+    }, 500);
+  }
+  
+  function stopTabMonitoring() {
+    if (tabCheckInterval) {
+      clearInterval(tabCheckInterval);
+      tabCheckInterval = null;
+    }
+  }
 
-  chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
-    if (changeInfo.status === 'complete' && tabId === currentTabId) {
-      const state = await checkContentScriptState();
-      if (togglePreview.checked && !state.enabled) {
-        await sendToContent({ type: 'TOGGLE_PREVIEW', enabled: true });
-        await applyAllSettings();
-      }
+  // Start monitoring when panel opens
+  startTabMonitoring();
+
+  // Also sync on visibility change (when user returns to browser)
+  document.addEventListener('visibilitychange', async () => {
+    if (document.visibilityState === 'visible') {
+      await syncWithCurrentTab();
     }
   });
 
@@ -343,7 +397,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function fetchPageThemeColor() {
     try {
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      const tab = await getActiveTab();
       if (!tab?.id) return;
       
       const [result] = await chrome.scripting.executeScript({
@@ -1746,8 +1800,13 @@ document.addEventListener('DOMContentLoaded', () => {
     
     await loadScreenshots();
     
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const tab = await getActiveTab();
     currentTabId = tab?.id || null;
+    
+    // Notify background of current tab
+    if (panelPort && currentTabId) {
+      panelPort.postMessage({ type: 'SET_TAB_ID', tabId: currentTabId });
+    }
     
     const previewEnabled = togglePreview.checked;
     previewControls.classList.toggle('disabled', !previewEnabled);

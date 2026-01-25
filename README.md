@@ -70,10 +70,6 @@ A free simple Chrome extension for capturing website screenshots with device fra
 
 This project was primarily vibe-coded using AI assistance, with occasional manual corrections and guidance.
 
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
 ## Privacy
 
 Kubshot is fully local — no data collection, no accounts, no tracking. See [PRIVACY.md](PRIVACY.md) for details.

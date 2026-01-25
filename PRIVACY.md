@@ -34,8 +34,7 @@ Kubshot requires certain browser permissions to function. Here's why:
 
 | Permission | Purpose |
 |------------|---------|
-| `tabs` | Capture screenshots of the active tab |
-| `activeTab` | Access the current page to display the device frame overlay |
+| `activeTab` | Access the current page to display the device frame overlay and capture screenshots |
 | `scripting` | Inject the device frame overlay onto the page |
 | `storage` | Save your preferences and screenshot gallery locally |
 | `unlimitedStorage` | Store multiple screenshots without hitting browser limits |
